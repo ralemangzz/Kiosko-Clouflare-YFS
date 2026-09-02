@@ -11,9 +11,7 @@ binding = "ASSETS"
 
 # Namespace de KV donde vive todo el estado del portal (equivalente a
 # data/links.json y data/admin.json de la versión para servidor propio).
-# El "id" de abajo es solo para pruebas locales con `wrangler dev`.
-# En producción, el binding real se configura en el dashboard de Cloudflare
-# (proyecto → Settings → Bindings) — ver DEPLOY_CLOUDFLARE.md.
+# Namespace "portal-linea-kv" creado en el dashboard de Cloudflare.
 [[kv_namespaces]]
 binding = "PORTAL_KV"
-id = "REEMPLAZAR_CON_EL_ID_REAL_DEL_KV_NAMESPACE"
+id = "0ce1549a6bb34a5fa878548b2fab002f"
