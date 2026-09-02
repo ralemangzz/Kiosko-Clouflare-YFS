@@ -1,13 +1,19 @@
 name = "portal-linea"
+main = "src/worker.js"
 compatibility_date = "2025-01-01"
-pages_build_output_dir = "public"
 
-# Namespace de KV donde vive todo el estado del portal (links.json y
-# admin.json de la versión para servidor propio pasan a vivir aquí).
-# El "id" de abajo es solo para pruebas locales con `wrangler pages dev`.
+# Archivos estáticos (public/index.html, styles.css, Images/) — Cloudflare
+# los sirve directo sin pasar por el Worker cuando la ruta coincide con un
+# archivo real; src/worker.js solo corre para /api/*.
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+# Namespace de KV donde vive todo el estado del portal (equivalente a
+# data/links.json y data/admin.json de la versión para servidor propio).
+# El "id" de abajo es solo para pruebas locales con `wrangler dev`.
 # En producción, el binding real se configura en el dashboard de Cloudflare
-# Pages (Settings → Functions → KV namespace bindings) — ver
-# DEPLOY_CLOUDFLARE.md.
+# (proyecto → Settings → Bindings) — ver DEPLOY_CLOUDFLARE.md.
 [[kv_namespaces]]
 binding = "PORTAL_KV"
 id = "REEMPLAZAR_CON_EL_ID_REAL_DEL_KV_NAMESPACE"
