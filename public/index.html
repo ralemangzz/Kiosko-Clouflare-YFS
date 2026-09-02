@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Portal de Línea Yanfeng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+
+<header>
+  <div class="brand">
+    <div class="brand-text">
+      <img src="/Images/logo.png">
+      <p>Accesos rápidos a aplicaciones</p>
+    </div>
+    <div>
+    </div>
+  </div>
+  <div class="clock-block">
+    <div class="clock-time" id="clockTime">--:--:--</div>
+    <div class="clock-date" id="clockDate">-- -- ----</div>
+  </div>
+</header>
+
+<main>
+  <p class="section-label">Aplicaciones disponibles</p>
+  <div id="gridWrap"><div class="loading">Cargando aplicaciones…</div></div>
+</main>
+
+<button class="admin-fab" id="adminFab" title="Panel de administrador" aria-label="Panel de administrador">⚙</button>
+
+<div class="overlay hidden" id="loginOverlay">
+  <div class="panel">
+    <h2>Panel de administrador</h2>
+    <p class="hint">Ingresa la contraseña para crear, editar o eliminar aplicaciones.</p>
+    <label for="pwInput">Contraseña</label>
+    <input type="password" id="pwInput" placeholder="••••••••" autocomplete="off">
+    <div class="error-msg" id="loginError"></div>
+    <div class="row">
+      <button class="btn btn-ghost" id="loginCancel">Cancelar</button>
+      <button class="btn btn-primary" id="loginSubmit">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="admin-screen hidden" id="adminScreen">
+  <div class="admin-header">
+    <h1>Administrar aplicaciones</h1>
+    <button class="btn btn-ghost" id="exitAdmin">Volver al kiosko</button>
+  </div>
+  <div class="admin-body">
+
+    <div class="form-card">
+      <h3 id="formTitle">Agregar aplicación</h3>
+      <input type="hidden" id="editId">
+      <label for="fName">Nombre</label>
+      <input type="text" id="fName" placeholder="Ej. Nómina">
+      <label for="fDesc">Descripción breve</label>
+      <input type="text" id="fDesc" placeholder="Ej. Consulta tus recibos de pago">
+      <label for="fUrl">Enlace (URL completa)</label>
+      <input type="url" id="fUrl" placeholder="https://...">
+      <label for="fIcon">Ícono</label>
+      <select id="fIcon">
+        <option value="💰">💰 Nómina / Pagos</option>
+        <option value="🌴">🌴 Vacaciones</option>
+        <option value="🕐">🕐 Horario / Asistencia</option>
+        <option value="📄">📄 Documentos</option>
+        <option value="📋">📋 Solicitudes</option>
+        <option value="🩺">🩺 Salud / IMSS</option>
+        <option value="🎓">🎓 Capacitación</option>
+        <option value="📢">📢 Avisos</option>
+        <option value="🔗">🔗 Otro</option>
+      </select>
+      <div class="error-msg" id="formError"></div>
+      <div class="row">
+        <button class="btn btn-ghost hidden" id="cancelEdit">Cancelar edición</button>
+        <button class="btn btn-primary" id="saveLink">Guardar aplicación</button>
+        <button class="btn btn-secundary" id="saveLink">Reiniciar Proceso</button>
+      </div>
+    </div>
+
+    <h3 style="font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:15px;color:var(--text-muted);margin-bottom:14px;">Aplicaciones existentes</h3>
+    <div id="linkList"><div class="loading">Cargando…</div></div>
+
+    <div class="form-card" style="margin-top:28px;">
+      <h3>Cambiar contraseña de administrador</h3>
+      <label for="newPw">Nueva contraseña</label>
+      <input type="password" id="newPw" placeholder="Mínimo 4 caracteres">
+      <div class="error-msg" id="pwChangeMsg"></div>
+      <button class="btn btn-ghost" id="changePwBtn">Actualizar contraseña</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  let links = [];
+  let sessionPassword = null; // se guarda solo en memoria mientras la pestaña está abierta
+
+  // ---------- reloj ----------
+  function tick(){
+    const now = new Date();
+    document.getElementById('clockTime').textContent =
+      now.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+    document.getElementById('clockDate').textContent =
+      now.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ---------- helpers de red ----------
+  async function api(path, options){
+    const res = await fetch(path, options);
+    let data = null;
+    try{ data = await res.json(); }catch(e){ /* respuesta sin cuerpo */ }
+    if(!res.ok){
+      const err = new Error((data && data.error) || 'Error de red');
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  function escapeHtml(s){
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- vista kiosko ----------
+  async function loadLinks(){
+    try{
+      links = await api('/api/links');
+    }catch(e){
+      links = [];
+      document.getElementById('gridWrap').innerHTML =
+        '<div class="empty-state"><strong>No se pudo conectar con el servidor</strong>Verifica que el servicio esté corriendo.</div>';
+      return;
+    }
+    renderGrid();
+  }
+
+  function renderGrid(){
+    const wrap = document.getElementById('gridWrap');
+    if(!links.length){
+      wrap.innerHTML = '<div class="empty-state"><strong>Aún no hay aplicaciones</strong>Agrega la primera desde el panel de administrador (ícono ⚙ abajo a la derecha).</div>';
+      return;
+    }
+    wrap.innerHTML = '<div class="grid">' + links.map(l => `
+      <a class="tile" href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer">
+        <div class="tile-icon">${l.icon || '🔗'}</div>
+        <div>
+          <div class="tile-name">${escapeHtml(l.name)}</div>
+          ${l.desc ? `<div class="tile-desc">${escapeHtml(l.desc)}</div>` : ''}
+        </div>
+        <div class="tile-go">Abrir →</div>
+      </a>
+    `).join('') + '</div>';
+  }
+
+  // ---------- vista admin: listado ----------
+  function renderAdminList(){
+    const wrap = document.getElementById('linkList');
+    if(!links.length){
+      wrap.innerHTML = '<div class="loading">No hay aplicaciones registradas todavía.</div>';
+      return;
+    }
+    wrap.innerHTML = links.map(l => `
+      <div class="link-row">
+        <div class="ic">${l.icon || '🔗'}</div>
+        <div class="meta">
+          <div class="n">${escapeHtml(l.name)}</div>
+          <div class="u">${escapeHtml(l.url)}</div>
+        </div>
+        <button class="icon-btn" data-edit="${l.id}" title="Editar">✎</button>
+        <button class="icon-btn danger" data-del="${l.id}" title="Eliminar">🗑</button>
+      </div>
+    `).join('');
+
+    wrap.querySelectorAll('[data-edit]').forEach(btn=>{
+      btn.addEventListener('click', () => startEdit(btn.getAttribute('data-edit')));
+    });
+    wrap.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.addEventListener('click', () => deleteLink(btn.getAttribute('data-del')));
+    });
+  }
+
+  function startEdit(id){
+    const l = links.find(x => x.id === id);
+    if(!l) return;
+    document.getElementById('editId').value = l.id;
+    document.getElementById('fName').value = l.name;
+    document.getElementById('fDesc').value = l.desc || '';
+    document.getElementById('fUrl').value = l.url;
+    document.getElementById('fIcon').value = l.icon || '🔗';
+    document.getElementById('formTitle').textContent = 'Editar aplicación';
+    document.getElementById('cancelEdit').classList.remove('hidden');
+    document.getElementById('saveLink').textContent = 'Guardar cambios';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  function resetForm(){
+    document.getElementById('editId').value = '';
+    document.getElementById('fName').value = '';
+    document.getElementById('fDesc').value = '';
+    document.getElementById('fUrl').value = '';
+    document.getElementById('fIcon').value = '💰';
+    document.getElementById('formTitle').textContent = 'Agregar aplicación';
+    document.getElementById('cancelEdit').classList.add('hidden');
+    document.getElementById('saveLink').textContent = 'Guardar aplicación';
+    document.getElementById('formError').textContent = '';
+  }
+
+  async function deleteLink(id){
+    if(!confirm('¿Eliminar esta aplicación del portal?')) return;
+    try{
+      await api('/api/links/' + id, {
+        method: 'DELETE',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ password: sessionPassword })
+      });
+      await loadLinks();
+      renderAdminList();
+    }catch(e){
+      alert('No se pudo eliminar: ' + e.message);
+    }
+  }
+
+  document.getElementById('saveLink').addEventListener('click', async () => {
+    const id = document.getElementById('editId').value;
+    const name = document.getElementById('fName').value.trim();
+    const desc = document.getElementById('fDesc').value.trim();
+    let url = document.getElementById('fUrl').value.trim();
+    const icon = document.getElementById('fIcon').value;
+    const errBox = document.getElementById('formError');
+    errBox.textContent = '';
+
+    if(!name || !url){
+      errBox.textContent = 'El nombre y el enlace son obligatorios.';
+      return;
+    }
+    if(!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+    try{
+      const body = JSON.stringify({ password: sessionPassword, name, desc, url, icon });
+      if(id){
+        await api('/api/links/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body });
+      }else{
+        await api('/api/links', { method:'POST', headers:{'Content-Type':'application/json'}, body });
+      }
+      await loadLinks();
+      renderAdminList();
+      resetForm();
+    }catch(e){
+      errBox.textContent = e.message;
+    }
+  });
+
+  document.getElementById('cancelEdit').addEventListener('click', resetForm);
+
+  // ---------- cambiar contraseña ----------
+  document.getElementById('changePwBtn').addEventListener('click', async () => {
+    const val = document.getElementById('newPw').value;
+    const msg = document.getElementById('pwChangeMsg');
+    msg.style.color = 'var(--red)';
+    if(!val || val.length < 4){
+      msg.textContent = 'La contraseña debe tener al menos 4 caracteres.';
+      return;
+    }
+    try{
+      await api('/api/admin/password', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ oldPassword: sessionPassword, newPassword: val })
+      });
+      sessionPassword = val;
+      msg.style.color = 'var(--green)';
+      msg.textContent = 'Contraseña actualizada.';
+      document.getElementById('newPw').value = '';
+    }catch(e){
+      msg.textContent = e.message;
+    }
+  });
+
+  // ---------- login / navegación ----------
+  const loginOverlay = document.getElementById('loginOverlay');
+  const adminScreen = document.getElementById('adminScreen');
+
+  document.getElementById('adminFab').addEventListener('click', () => {
+    document.getElementById('pwInput').value = '';
+    document.getElementById('loginError').textContent = '';
+    loginOverlay.classList.remove('hidden');
+    loginOverlay.classList.remove('showing');
+    document.getElementById('pwInput').focus();
+  });
+
+  document.getElementById('loginCancel').addEventListener('click', () => {
+    loginOverlay.classList.add('hidden');
+    loginOverlay.classList.add('showing');
+  });
+
+  document.getElementById('loginSubmit').addEventListener('click', submitLogin);
+  document.getElementById('pwInput').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') submitLogin();
+  });
+
+  async function submitLogin(){
+    const val = document.getElementById('pwInput').value;
+    const errBox = document.getElementById('loginError');
+    try{
+      await api('/api/admin/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ password: val })
+      });
+      sessionPassword = val;
+      loginOverlay.classList.add('hidden');
+      resetForm();
+      renderAdminList();
+      adminScreen.classList.remove('hidden');
+    }catch(e){
+      errBox.textContent = 'Contraseña incorrecta.';
+    }
+  }
+
+  document.getElementById('exitAdmin').addEventListener('click', () => {
+    adminScreen.classList.add('hidden');
+  });
+
+  // ---------- init ----------
+  loadLinks();
+})();
+</script>
+
+</body>
+</html>

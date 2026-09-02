@@ -1,0 +1,13 @@
+name = "portal-linea"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "public"
+
+# Namespace de KV donde vive todo el estado del portal (links.json y
+# admin.json de la versión para servidor propio pasan a vivir aquí).
+# El "id" de abajo es solo para pruebas locales con `wrangler pages dev`.
+# En producción, el binding real se configura en el dashboard de Cloudflare
+# Pages (Settings → Functions → KV namespace bindings) — ver
+# DEPLOY_CLOUDFLARE.md.
+[[kv_namespaces]]
+binding = "PORTAL_KV"
+id = "REEMPLAZAR_CON_EL_ID_REAL_DEL_KV_NAMESPACE"
